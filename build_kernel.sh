@@ -69,43 +69,47 @@ echo "[*] Setting up ccache in $CCACHE_DIR..."
 mkdir -p "$CCACHE_DIR"
 
 # ==========================================
-# KernelSU Setup（ReSukiSU main，手机APP装35129-4管理器）
+# KernelSU Setup（ReSukiSU old‑setup.sh + 手动拉取SUSFS）
 # ==========================================
 if [ "$ENABLE_KSU" -eq 1 ]; then
     echo "==========================================="
-    echo " [*] Initializing KernelSU (ReSukiSU main) Setup"
+    echo " [*] Initializing KernelSU (ReSukiSU) Setup"
     echo "==========================================="
-    rm -rf drivers/kernelsu
-    echo "[*] Downloading and running ReSukiSU remote setup.sh branch=susfs"
-    # ✅正确分支：susfs，不是susfs‑ksud
-    curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s susfs
-    echo "[+] KernelSU setup finished."
+    # 清理旧残留，KernelSU会被setup.sh放在内核根目录 ./KernelSU
+    rm -rf ./KernelSU ./drivers/kernelsu
 
-    sleep 5
-    ls -la drivers/kernelsu/
-    if [ ! -d "drivers/kernelsu/susfs" ]; then
-        echo "[!] ERROR: susfs directory NOT found!"
+    echo "[*] Run original ReSukiSU setup.sh (不带任何参数！)"
+    curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+
+    # 手动克隆SUSFS到真实物理目录 ./KernelSU/kernel/susfs，不要操作软链接drivers/kernelsu
+    echo "[*] Manually clone susfs4ksu"
+    cd ./KernelSU/kernel
+    rm -rf susfs
+    git clone https://github.com/SimonPunk/susfs4ksu.git susfs
+    cd ../../
+
+    sleep 4
+    ls -la ./KernelSU/kernel/
+    if [ ! -d "./KernelSU/kernel/susfs" ]; then
+        echo "[!] FATAL: susfs clone failed! ./KernelSU/kernel/susfs missing"
         exit 1
     fi
 
-    # =========补SUSFS缺少的4个函数=========
-    if ! grep -q "susfs_is_current_proc_no_su" drivers/kernelsu/susfs/susfs.c; then
-cat >> drivers/kernelsu/susfs/susfs.c <<'EOF'
+    # =========补SUSFS缺少的4个函数，操作真实物理文件=========
+    if ! grep -q "susfs_is_current_proc_no_su" ./KernelSU/kernel/susfs/susfs.c; then
+cat >> ./KernelSU/kernel/susfs/susfs.c <<'EOF'
 bool susfs_is_current_proc_no_su(void)
 {
 	return current->susfs_no_su;
 }
-
 void susfs_set_current_proc_no_su(bool val)
 {
 	current->susfs_no_su = val;
 }
-
 void susfs_clear_current_proc_no_su(void)
 {
 	current->susfs_no_su = false;
 }
-
 void susfs_set_current_proc_umounted_for_zygote_next(bool val)
 {
 	current->susfs_umounted_for_zygote_next = val;
@@ -113,8 +117,8 @@ void susfs_set_current_proc_umounted_for_zygote_next(bool val)
 EOF
     fi
 
-    if ! grep -q "susfs_is_current_proc_no_su" drivers/kernelsu/susfs/susfs.h; then
-cat >> drivers/kernelsu/susfs/susfs.h <<'EOF'
+    if ! grep -q "susfs_is_current_proc_no_su" ./KernelSU/kernel/susfs/susfs.h; then
+cat >> ./KernelSU/kernel/susfs/susfs.h <<'EOF'
 bool susfs_is_current_proc_no_su(void);
 void susfs_set_current_proc_no_su(bool val);
 void susfs_clear_current_proc_no_su(void);
@@ -122,12 +126,12 @@ void susfs_set_current_proc_umounted_for_zygote_next(bool val);
 EOF
     fi
 
-    if ! grep -q "susfs_no_su" drivers/kernelsu/susfs/susfs.h; then
+    if ! grep -q "susfs_no_su" ./KernelSU/kernel/susfs/susfs.h; then
 sed -i '/struct task_struct {/a \
 	bool susfs_no_su;\
-	bool susfs_umounted_for_zygote_next;' drivers/kernelsu/susfs/susfs.h
+	bool susfs_umounted_for_zygote_next;' ./KernelSU/kernel/susfs/susfs.h
     fi
-    # =========补丁结束=========
+    echo "[+] All ReSukiSU + SUSFS steps done!"
 fi
 # ==========================================
 # Baseband-guard Setup
