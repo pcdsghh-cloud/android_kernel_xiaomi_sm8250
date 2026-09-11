@@ -69,17 +69,59 @@ echo "[*] Setting up ccache in $CCACHE_DIR..."
 mkdir -p "$CCACHE_DIR"
 
 # ==========================================
-# KernelSU Setup
+# KernelSU Setup（ReSukiSU main，手机APP装35129-4管理器）
 # ==========================================
 if [ "$ENABLE_KSU" -eq 1 ]; then
     echo "==========================================="
-    echo " [*] Initializing KernelSU (ReSukiSU) Setup"
+    echo " [*] Initializing KernelSU (ReSukiSU main) Setup"
     echo "==========================================="
+    rm -rf drivers/kernelsu
     echo "[*] Downloading and running ReSukiSU remote setup script..."
     curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
     echo "[+] KernelSU setup finished."
-fi
 
+    # =========补SUSFS缺少的4个函数=========
+    if ! grep -q "susfs_is_current_proc_no_su" drivers/kernelsu/susfs/susfs.c; then
+cat >> drivers/kernelsu/susfs/susfs.c <<'EOF'
+bool susfs_is_current_proc_no_su(void)
+{
+	return current->susfs_no_su;
+}
+
+void susfs_set_current_proc_no_su(bool val)
+{
+	current->susfs_no_su = val;
+}
+
+void susfs_clear_current_proc_no_su(void)
+{
+	current->susfs_no_su = false;
+}
+
+void susfs_set_current_proc_umounted_for_zygote_next(bool val)
+{
+	current->susfs_umounted_for_zygote_next = val;
+}
+EOF
+    fi
+
+    if ! grep -q "susfs_is_current_proc_no_su" drivers/kernelsu/susfs/susfs.h; then
+cat >> drivers/kernelsu/susfs/susfs.h <<'EOF'
+bool susfs_is_current_proc_no_su(void);
+void susfs_set_current_proc_no_su(bool val);
+void susfs_clear_current_proc_no_su(void);
+void susfs_set_current_proc_umounted_for_zygote_next(bool val);
+EOF
+    fi
+
+    if ! grep -q "susfs_no_su" drivers/kernelsu/susfs/susfs.h; then
+sed -i '/struct task_struct {/a \
+	bool susfs_no_su;\
+	bool susfs_umounted_for_zygote_next;' drivers/kernelsu/susfs/susfs.h
+    fi
+    # =========补丁结束=========
+
+fi
 # ==========================================
 # Baseband-guard Setup
 # ==========================================
