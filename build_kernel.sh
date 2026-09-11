@@ -106,6 +106,16 @@ git clone https://github.com/AstideLabs/AnyKernel3 -b kona --single-branch --dep
 echo "[+] AnyKernel3 cloned successfully."
 echo "[*] Adjusting AnyKernel3..."
 sed -i "s/^device\.name1=.*/device.name1=${DEVICE_NAME}/" anykernel/anykernel.sh
+# Patch userflavor，增加HyperOS4识别
+sed -i 's|userflavor="$(file_getprop /system/build.prop "ro.build.flavor")";
+case "$userflavor" in
+    missi*|qssi*) os="miui"; os_string="MIUI ROM";;
+    *) os="aosp"; os_string="AOSP ROM";;
+esac;|userflavor="$(file_getprop /system/build.prop "ro.build.flavor")";
+case "$userflavor" in
+    missi*|qssi*|*miui*|*hyperos*|miproduct*) os="miui"; os_string="MIUI/HyperOS ROM";;
+    *) os="aosp"; os_string="AOSP ROM";;
+esac;|g' anykernel/anykernel.sh
 echo "[*] AnyKernel3 adjusted successfully."
 echo "==========================================="
 
