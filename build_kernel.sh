@@ -80,6 +80,14 @@ if [ "$ENABLE_KSU" -eq 1 ]; then
     curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
     echo "[+] KernelSU setup finished."
 
+    # =========修复时序：等待susfs子模块下载落地=========
+    sleep 4
+    if [ ! -d "drivers/kernelsu/susfs" ]; then
+        echo "[!] ERROR: susfs directory not found, setup may have failed."
+        exit 1
+    fi
+    # ==================================================
+
     # =========补SUSFS缺少的4个函数=========
     if ! grep -q "susfs_is_current_proc_no_su" drivers/kernelsu/susfs/susfs.c; then
 cat >> drivers/kernelsu/susfs/susfs.c <<'EOF'
@@ -120,7 +128,6 @@ sed -i '/struct task_struct {/a \
 	bool susfs_umounted_for_zygote_next;' drivers/kernelsu/susfs/susfs.h
     fi
     # =========补丁结束=========
-
 fi
 # ==========================================
 # Baseband-guard Setup
