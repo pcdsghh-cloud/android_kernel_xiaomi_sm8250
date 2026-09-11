@@ -81,11 +81,11 @@ if [ "$ENABLE_KSU" -eq 1 ]; then
     echo "[*] Run original ReSukiSU setup.sh (不带任何参数！)"
     curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
-    # 使用wget下载zip包，绕开git clone网络128错误
-    echo "[*] Download susfs4ksu source via wget zip"
+    # 使用curl加重试下载zip，规避github‑actions网络问题
+    echo "[*] Download susfs4ksu source via curl zip (retry=3)"
     cd ./KernelSU/kernel
-    rm -rf susfs
-    wget -qO susfs.zip https://github.com/SimonPunk/susfs4ksu/archive/refs/heads/main.zip
+    rm -rf susfs susfs.zip susfs4ksu-main
+    curl --retry 3 --retry-delay 5 --connect-timeout 20 -L -o susfs.zip https://github.com/SimonPunk/susfs4ksu/archive/refs/heads/main.zip
     unzip -q susfs.zip
     mv susfs4ksu-main susfs
     rm -f susfs.zip
