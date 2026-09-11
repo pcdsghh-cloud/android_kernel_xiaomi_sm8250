@@ -69,33 +69,36 @@ echo "[*] Setting up ccache in $CCACHE_DIR..."
 mkdir -p "$CCACHE_DIR"
 
 # ==========================================
-# KernelSU Setup（ReSukiSU old‑setup.sh + 手动拉取SUSFS）
+# KernelSU Setup（ReSukiSU old‑setup.sh + wget下载SUSFS，避开git网络128报错）
 # ==========================================
 if [ "$ENABLE_KSU" -eq 1 ]; then
     echo "==========================================="
     echo " [*] Initializing KernelSU (ReSukiSU) Setup"
     echo "==========================================="
-    # 清理旧残留，KernelSU会被setup.sh放在内核根目录 ./KernelSU
+    # 清理旧残留，setup.sh会把ReSukiSU放在内核根目录 ./KernelSU
     rm -rf ./KernelSU ./drivers/kernelsu
 
     echo "[*] Run original ReSukiSU setup.sh (不带任何参数！)"
     curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
 
-    # 手动克隆SUSFS到真实物理目录 ./KernelSU/kernel/susfs，不要操作软链接drivers/kernelsu
-    echo "[*] Manually clone susfs4ksu"
+    # 使用wget下载zip包，绕开git clone网络128错误
+    echo "[*] Download susfs4ksu source via wget zip"
     cd ./KernelSU/kernel
     rm -rf susfs
-    git clone https://github.com/SimonPunk/susfs4ksu.git susfs
+    wget -qO susfs.zip https://github.com/SimonPunk/susfs4ksu/archive/refs/heads/main.zip
+    unzip -q susfs.zip
+    mv susfs4ksu-main susfs
+    rm -f susfs.zip
     cd ../../
 
-    sleep 4
+    sleep 3
     ls -la ./KernelSU/kernel/
     if [ ! -d "./KernelSU/kernel/susfs" ]; then
-        echo "[!] FATAL: susfs clone failed! ./KernelSU/kernel/susfs missing"
+        echo "[!] FATAL: susfs directory missing after unzip!"
         exit 1
     fi
 
-    # =========补SUSFS缺少的4个函数，操作真实物理文件=========
+    # =========补SUSFS缺少的4个函数=========
     if ! grep -q "susfs_is_current_proc_no_su" ./KernelSU/kernel/susfs/susfs.c; then
 cat >> ./KernelSU/kernel/susfs/susfs.c <<'EOF'
 bool susfs_is_current_proc_no_su(void)
@@ -126,12 +129,16 @@ void susfs_set_current_proc_umounted_for_zygote_next(bool val);
 EOF
     fi
 
-    if ! grep -q "susfs_no_su" ./KernelSU/kernel/susfs/susfs.h; then
-sed -i '/struct task_struct {/a \
-	bool susfs_no_su;\
-	bool susfs_umounted_for_zygote_next;' ./KernelSU/kernel/susfs/susfs.h
-    fi
-    echo "[+] All ReSukiSU + SUSFS steps done!"
+    # --------------------------
+    # ⚠️ 第一次跑先注释下面这行sed！极易GKI卡bootloop！等开机正常再打开
+    # --------------------------
+    # if ! grep -q "susfs_no_su" ./KernelSU/kernel/susfs/susfs.h; then
+    # sed -i '/struct task_struct {/a \
+	# bool susfs_no_su;\
+	# bool susfs_umounted_for_zygote_next;' ./KernelSU/kernel/susfs/susfs.h
+    # fi
+
+    echo "[+] All ReSukiSU + SUSFS steps done."
 fi
 # ==========================================
 # Baseband-guard Setup
