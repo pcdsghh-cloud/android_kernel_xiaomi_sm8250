@@ -76,17 +76,18 @@ if [ "$ENABLE_KSU" -eq 1 ]; then
     echo " [*] Initializing KernelSU (ReSukiSU main) Setup"
     echo "==========================================="
     rm -rf drivers/kernelsu
-    echo "[*] Downloading and running ReSukiSU remote setup script..."
-    curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+    echo "[*] Downloading and running ReSukiSU remote setup script (susfs‑ksud branch)..."
+    # 关键！-s susfs‑ksud 才会下载susfs源码
+    curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s susfs-ksud
     echo "[+] KernelSU setup finished."
 
-    # =========修复时序：等待susfs子模块下载落地=========
+    # 等待磁盘写入完成
     sleep 4
     if [ ! -d "drivers/kernelsu/susfs" ]; then
-        echo "[!] ERROR: susfs directory not found, setup may have failed."
+        echo "[!] ERROR: susfs directory not found! setup.sh may failed to clone susfs."
+        ls -la drivers/kernelsu/
         exit 1
     fi
-    # ==================================================
 
     # =========补SUSFS缺少的4个函数=========
     if ! grep -q "susfs_is_current_proc_no_su" drivers/kernelsu/susfs/susfs.c; then
